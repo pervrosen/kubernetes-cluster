@@ -39,10 +39,11 @@ As you can see above, you can also configure IP address, memory and CPU in the s
 As you might have found out there is no ubuntu/xenial64 for libvirt, but only for virtualbox. 
 To convert a virtaul box to a libvirt box please follow the example below:
 
-> vagrant plugin install vagrant-mutate
-> vagrant box add --provider virtualbox --box-version 20200522.0.0 ubuntu/xenial64
-> vagrant mutate ubuntu/xenial64 libvirt
-
+```
+vagrant plugin install vagrant-mutate
+vagrant box add --provider virtualbox --box-version 20200522.0.0 ubuntu/xenial64
+vagrant mutate ubuntu/xenial64 libvirt
+```
 
 ## Clean-up
 
