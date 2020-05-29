@@ -3,7 +3,7 @@ A vagrant script for setting up a Kubernetes cluster using Kubeadm
 
 ## Pre-requisites
 
- * **[Vagrant 2.1.4+](https://www.vagrantup.com)**
+ * **[Vagrant 2.2.4+](https://www.vagrantup.com)**
  * **[Virtualbox 5.2.18+](https://www.virtualbox.org)**
 
 ## How to Run
@@ -24,7 +24,7 @@ servers = [
         :name => "k8s-node-3",
         :type => "node",
         :box => "ubuntu/xenial64",
-        :box_version => "20180831.0.0",
+        :box_version => "2020522.0.0",
         :eth1 => "192.168.205.13",
         :mem => "2048",
         :cpu => "2"
@@ -43,6 +43,12 @@ To convert a virtaul box to a libvirt box please follow the example below:
 vagrant plugin install vagrant-mutate
 vagrant box add --provider virtualbox --box-version 20200522.0.0 ubuntu/xenial64
 vagrant mutate ubuntu/xenial64 libvirt
+```
+
+Or start vagrant up for virtualbox with 
+
+```
+vagrant up --provider virtualbox
 ```
 
 ## Clean-up
