@@ -6,7 +6,7 @@ servers = [
         :name => "k8s-head",
         :type => "master",
         :box => "ubuntu/xenial64",
-        :box_version => "20180831.0.0",
+        :box_version => "20200522.0.0",
         :eth1 => "192.168.205.10",
         :mem => "2048",
         :cpu => "2"
@@ -15,7 +15,7 @@ servers = [
         :name => "k8s-node-1",
         :type => "node",
         :box => "ubuntu/xenial64",
-        :box_version => "20180831.0.0",
+        :box_version => "20200522.0.0",
         :eth1 => "192.168.205.11",
         :mem => "2048",
         :cpu => "2"
@@ -24,7 +24,7 @@ servers = [
         :name => "k8s-node-2",
         :type => "node",
         :box => "ubuntu/xenial64",
-        :box_version => "20180831.0.0",
+        :box_version => "20200522.0.0",
         :eth1 => "192.168.205.12",
         :mem => "2048",
         :cpu => "2"
@@ -34,13 +34,13 @@ servers = [
 # This script to install k8s using kubeadm will get executed after a box is provisioned
 $configureBox = <<-SCRIPT
 
-    # install docker v17.03
+    # install docker v19.03
     # reason for not using docker provision is that it always installs latest version of the docker, but kubeadm requires 17.03 or older
     apt-get update
     apt-get install -y apt-transport-https ca-certificates curl software-properties-common
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
     add-apt-repository "deb https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") $(lsb_release -cs) stable"
-    apt-get update && apt-get install -y docker-ce=$(apt-cache madison docker-ce | grep 17.03 | head -1 | awk '{print $3}')
+    apt-get update && apt-get install -y docker-ce=$(apt-cache madison docker-ce | grep 19.03 | head -1 | awk '{print $3}')
 
     # run docker commands as vagrant user (sudo not required)
     usermod -aG docker vagrant
@@ -84,8 +84,8 @@ $configureMaster = <<-SCRIPT
 
     # install Calico pod network addon
     export KUBECONFIG=/etc/kubernetes/admin.conf
-    kubectl apply -f https://raw.githubusercontent.com/ecomm-integration-ballerina/kubernetes-cluster/master/calico/rbac-kdd.yaml
-    kubectl apply -f https://raw.githubusercontent.com/ecomm-integration-ballerina/kubernetes-cluster/master/calico/calico.yaml
+    kubectl apply -f http://10.0.0.2:3000/pervonrosen/kubernetes-cluster/master/calico/rbac-kdd.yaml
+    kubectl apply -f http://10.0.0.2:3000/pervonrosen/kubernetes-cluster/master/calico/calico.yaml
 
     kubeadm token create --print-join-command >> /etc/kubeadm_join_cmd.sh
     chmod +x /etc/kubeadm_join_cmd.sh
@@ -116,7 +116,7 @@ Vagrant.configure("2") do |config|
             config.vm.provider "virtualbox" do |v|
 
                 v.name = opts[:name]
-            	 v.customize ["modifyvm", :id, "--groups", "/Ballerina Development"]
+                v.customize ["modifyvm", :id, "--groups", "/K8s cluster"]
                 v.customize ["modifyvm", :id, "--memory", opts[:mem]]
                 v.customize ["modifyvm", :id, "--cpus", opts[:cpu]]
 
