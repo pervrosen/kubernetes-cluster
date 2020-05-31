@@ -7,7 +7,7 @@ servers = [
         :type => "master",
         :box => "ubuntu/xenial64",
         :box_version => "20200522.0.0",
-        :eth1 => "192.168.205.10",
+        :eth1 => "192.168.206.10",
         :mem => "2048",
         :cpu => "2"
     },
@@ -16,7 +16,7 @@ servers = [
         :type => "node",
         :box => "ubuntu/xenial64",
         :box_version => "20200522.0.0",
-        :eth1 => "192.168.205.11",
+        :eth1 => "192.168.206.11",
         :mem => "2048",
         :cpu => "2"
     },
@@ -25,18 +25,23 @@ servers = [
         :type => "node",
         :box => "ubuntu/xenial64",
         :box_version => "20200522.0.0",
-        :eth1 => "192.168.205.12",
+        :eth1 => "192.168.206.12",
         :mem => "2048",
         :cpu => "2"
     }
 ]
 
 # This script to install k8s using kubeadm will get executed after a box is provisioned
-$configureBox = <<-SCRIPT
+$configureBox = <<-'SCRIPT'
 
     # install docker v19.03
     # reason for not using docker provision is that it always installs latest version of the docker, but kubeadm requires 17.03 or older
+    echo '*************************************************************************'
+    echo 'IP_ADDR:'
+    ip -o -4 addr show | awk 'NR==3 { gsub(/\/.*/, "", $4); print $4}'
+    echo '*************************************************************************'
     apt-get update
+    export DEBIAN_FRONTEND=noninteractive
     apt-get install -y apt-transport-https ca-certificates curl software-properties-common
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
     add-apt-repository "deb https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") $(lsb_release -cs) stable"
@@ -44,6 +49,22 @@ $configureBox = <<-SCRIPT
 
     # run docker commands as vagrant user (sudo not required)
     usermod -aG docker vagrant
+# Set up the Docker daemon
+cat > /etc/docker/daemon.json <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2"
+}
+EOF
+mkdir -p /etc/systemd/system/docker.service.d
+# Restart Docker
+systemctl daemon-reload
+systemctl restart docker
+
 
     # install kubeadm
     apt-get install -y apt-transport-https curl
@@ -62,16 +83,19 @@ EOF
     sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 
     # ip of this box
-    IP_ADDR=`ifconfig enp0s8 | grep Mask | awk '{print $2}'| cut -f2 -d:`
+    #IP_ADDR=`ifconfig ens6 | grep Mask | awk '{print $2}'| cut -f2 -d:`
+    IP_ADDR="$(ip -o -4  address show  | awk 'NR==3 { gsub(/\/.*/, "", $4); print $4}')"
     # set node-ip
+    test -f /etc/default/kubelet || touch /etc/default/kubelet
     sudo sed -i "/^[^#]*KUBELET_EXTRA_ARGS=/c\KUBELET_EXTRA_ARGS=--node-ip=$IP_ADDR" /etc/default/kubelet
     sudo systemctl restart kubelet
 SCRIPT
 
-$configureMaster = <<-SCRIPT
+$configureMaster = <<-'SCRIPT'
     echo "This is master"
     # ip of this box
-    IP_ADDR=`ifconfig enp0s8 | grep Mask | awk '{print $2}'| cut -f2 -d:`
+    #IP_ADDR=`ifconfig ens6 | grep Mask | awk '{print $2}'| cut -f2 -d:`
+    IP_ADDR="$(ip -o -4  address show  | awk 'NR==3 { gsub(/\/.*/, "", $4); print $4}')"
 
     # install k8s master
     HOST_NAME=$(hostname -s)
@@ -84,11 +108,14 @@ $configureMaster = <<-SCRIPT
 
     # install Calico pod network addon
     export KUBECONFIG=/etc/kubernetes/admin.conf
-    kubectl apply -f http://10.0.0.2:3000/pervonrosen/kubernetes-cluster/master/calico/rbac-kdd.yaml
-    kubectl apply -f http://10.0.0.2:3000/pervonrosen/kubernetes-cluster/master/calico/calico.yaml
+    kubectl apply -f https://docs.projectcalico.org/v3.14/manifests/calico.yaml
+
+    #kubectl apply -f http://10.0.0.2:3000/pervonrosen/kubernetes-cluster/master/calico/rbac-kdd.yaml
+    #kubectl apply -f http://10.0.0.2:3000/pervonrosen/kubernetes-cluster/master/calico/calico.yaml
 
     kubeadm token create --print-join-command >> /etc/kubeadm_join_cmd.sh
     chmod +x /etc/kubeadm_join_cmd.sh
+    echo /etc/kubeadm_join.sh
 
     # required for setting up password less ssh between guest VMs
     sudo sed -i "/^[^#]*PasswordAuthentication[[:space:]]no/c\PasswordAuthentication yes" /etc/ssh/sshd_config
@@ -96,10 +123,11 @@ $configureMaster = <<-SCRIPT
 
 SCRIPT
 
-$configureNode = <<-SCRIPT
+$configureNode = <<-'SCRIPT'
     echo "This is worker"
+    export DEBIAN_FRONTEND=noninteractive
     apt-get install -y sshpass
-    sshpass -p "vagrant" scp -o StrictHostKeyChecking=no vagrant@192.168.205.10:/etc/kubeadm_join_cmd.sh .
+    sshpass -p "vagrant" scp -o StrictHostKeyChecking=no vagrant@192.168.206.10:/etc/kubeadm_join_cmd.sh .
     sh ./kubeadm_join_cmd.sh
 SCRIPT
 
@@ -112,6 +140,8 @@ Vagrant.configure("2") do |config|
             config.vm.box_version = opts[:box_version]
             config.vm.hostname = opts[:name]
             config.vm.network :private_network, ip: opts[:eth1]
+
+            config.vm.synced_folder '.', '/vagrant', disabled: true
 
             config.vm.provider "virtualbox" do |v|
 
